@@ -1,0 +1,8 @@
+setup.py
+axel/__init__.py
+axel/axel.py
+axel.egg-info/PKG-INFO
+axel.egg-info/SOURCES.txt
+axel.egg-info/dependency_links.txt
+axel.egg-info/not-zip-safe
+axel.egg-info/top_level.txt

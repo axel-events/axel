@@ -1,0 +1,228 @@
+<!doctype html>
+<html>
+<head>
+<title>Axel - Python events handling (C# style)</title>   
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">            
+<meta name="keywords" content="Python events handling C#" />        
+</head>
+<body>
+<style>
+html, body { background-color: #ffffff; 
+font: normal 10pt arial, helvetica, sans-serif;
+padding: 0px; border: 0px; margin: 5px; max-width:800px;}    
+a { text-decoration: none;}
+h1 { font-size: 18pt; font-weight: bold; margin: 12px 0px 0px 0px; }
+h2 { font-size: 16pt; font-weight: bold; margin: 10px 0px 0px 0px; }
+h3 { font-size: 14pt; font-weight: bold; margin: 8px 0px 0px 0px; }
+h4 { font-size: 12pt; font-weight: bold; margin: 6px 0px 0px 0px; }
+h5 { font-size: 10pt; font-weight: bold; margin: 4px 0px 0px 0px; }
+.topnav { 
+    background-color: #eee; 
+    border: solid 1px #ccc; 
+    padding: 5px 10px 5px 20px;
+    margin: 10px 0px 10px 0px;
+    width: 800px;
+}
+.topnav ul { padding: 0px; margin-left: 20px; } 
+.topnav li { list-style-type:none; line-height:14pt; }
+.code {
+    background-color: #eee;
+    border: solid 1px #ccc;
+    padding: 5px 10px 5px 20px;
+    margin: 10px 0px 10px 0px;
+    width: 800px;
+}     
+</style>
+    
+<h1>Axel - Python events handling</h1>
+<h4>Documentation</h4><br/>
+Version 0.0.4 <br/>Last updated: April 7th, 2014<br/><br/>
+<div class="topnav">
+<ul><li><a href="#description">Description, Features & Download </a></li>
+    <li><a href="#examples">Examples</a></li>
+    <li><a href="#event_class">The Event class</a></li>
+    <ul><li><a href="#constructor">Constructor arguments</a></li>
+        <li><a href="#methods">Methods</a></li>
+        <li><a href="#structures">Structures</a></li>
+    </ul>
+</ul>
+</div><br/>
+
+<a name="description"></a>
+<h3>Description, Features & Download</h3><br/>
+
+Axel is a very small Python library, inspired by C#   
+events, that allows an easy and elegant event handling. <br/><br/> 
+
+<h4>Features:</h4>
+<ul><li>handlers can receive the sender as their first argument</li>
+    <li>handlers are always executed in separate threads</li>
+    <li>handlers may be executed synchronous or asynchronous</li>
+    <li>handlers execution may be synchronized on a lock</li>
+    <li>the time allocated for the execution of a handler is controllable</li>
+    <li>the number of actively executed handlers at one time is controllable</li>
+    <li>the execution result of a handler can be memoized</li>
+    <li>the result of the execution is provided as a tuple ((flag, result, handler),)</li>
+    <li>in case of error, the traceback can be provided for each handler in error</li>
+</ul>
+
+<h4>Download</h4><br/>
+The latest version of Axel can be downloaded from 
+<a href="https://pypi.python.org/pypi/axel">https://pypi.python.org/pypi/axel</a><br/><br/>
+
+<a name="examples"></a>
+<h3>Examples</h3>
+<div class="code"><pre>
+from axel import Event
+ 
+event = Event()
+def on_event(*args, **kwargs):
+    return (args, kwargs)
+
+event += on_event                        # handler registration
+print(event(10, 20, y=30))        
+>> ((True, ((10, 20), {'y': 30}), &lt;function on_event at 0x00BAA270&gt;),)
+ 
+event -= on_event                        # handler is unregistered
+print(event(10, 20, y=30))     
+>> None
+</pre></div>
+
+<div class="code"><pre>
+class Mouse(object):
+    def __init__(self):
+        self.click = Event(self)
+        self.click += self.on_click
+
+    def on_click(self, sender, *args, **kwargs):
+        assert isinstance(sender, Mouse), 'Wrong sender'
+        return (args, kwargs)
+
+mouse = Mouse()
+print(mouse.click(10, 20))
+>> ((True, ((10, 20), {})
+>> &lt;bound method Mouse.on_click of &lt;__main__.Mouse object at 0x00B6F470&gt;&gt;),)
+
+mouse.click -= mouse.on_click
+print(mouse.click(10, 20))
+>> None
+</pre></div><br/>
+Events can trigger further events, if necessary:
+
+<div class="code"><pre>
+from axel import Event
+
+class Mouse(object):
+    def __init__(self):
+        self.click = Event(self)        
+        self.move = Event(self)
+        
+        self.click += self.on_click
+        self.move += self.on_move
+        
+        self.click += self.move     # triggers event 'move' on call
+    
+    def on_click(self, sender, x, y):
+        assert isinstance(sender, Mouse)
+        return ('on_click', x, y)
+
+    def on_move(self, sender, x, y):
+        assert isinstance(sender, Mouse)
+        return ('on_move', x, y)   
+
+m = Mouse()
+res = m.click(10, 20)
+print(res)
+         
+>>((True,
+>>  ('on_click', 10, 20),
+>>  &lt;bound method Mouse.on_click of &lt;__main__.Mouse object at 0x00BBCED0&gt;&gt;),
+>> (True,
+>>  ((True,
+>>    ('on_move', 10, 20),
+>>    &lt;bound method Mouse.on_move of &lt;__main__.Mouse object at 0x00BBCED0&gt;&gt;),),
+>>  &lt;axel.axel.Event object at 0x00BBCF50&gt;))       
+</pre></div><br/>
+
+<a name="event_class"></a>
+<h3>The Event class</h3><br/>
+
+<a name="constructor"></a>
+<h4>Constructor's arguments</h4><br/>
+<b>Event</b> is the core class of the implementation. The usage is very 
+straightforward and all the features are controlled by the constructor's 
+arguments. The arguments are:
+<ul><li>asynch - if True, handlers are executes asynchronous</li>
+    <li>exc_info - if True, result will contain sys.exc_info()[:2] on error</li>
+    <li>lock - threading.RLock used to synchronize execution</li>
+    <li>sender - event's sender. The sender is passed as the first argument to the 
+                handler, only if is not None. For this case the handler must have
+                a placeholder in the arguments to receive the sender</li>
+    <li>threads - maximum number of threads that will be started</li>
+    <li>traceback - if True, the execution result will contain sys.exc_info() 
+                    on error. exc_info must be also True to get the traceback</li>
+</ul>
+ 
+Although most of the arguments are Event related, there is a way to pass two 
+arguments when a handler is registered: one will determine if the execution 
+result of the current handler will be cached; the second one will allocate 
+a predefined time interval for execution.
+
+<div class="code"><pre>
+event += handler or
+event += (handler, True, .3) or  
+event += {'handler':handler, 'memoize':True, 'timeout':.3}</pre>
+</div>
+Upon the call of the event, the execution results of registered handlers are returned
+as a tuple. The content of the tuple is determined by the Event arguments and
+the result itself. For each executed handler, the tuple will contain an entry with the 
+following structure:
+<div class="code">(flag, result, handler)</div>
+
+<ul><li>The <b>flag</b> will be True on success, 
+        False on error and None for asynchronous executions</li>
+    <li>The <b>result</b> will contain the actual result on success
+    or the error</li>
+    <ul><li>On error, the content is determined by exc_info and traceback arguments</li>
+    </ul>
+</ul>
+<div class="code"><pre>
+(True, result, handler),        # success
+(False, exc_info, handler),     # error
+(None, None, handler), ...      # asynchronous
+</pre></div>
+
+<a name="methods"></a>
+<h4>Methods</h4><br/>
+The Event class has the follwing methods:
+<ul><li>handle (alias for __iadd__) - register a handler</li>
+    <li>unhandle (alias for __isub__) - unregister a handler</li>
+    <li>fire (alias for __call__) - call the event</li>
+    <li>count (alias for __len__) - return the handler count</li>
+    <li>clear - removes all the handlers and cached results</li>
+</ul> 
+
+<a name="structures"></a>
+<h4>Structures</h4><br/>
+The following structures are used to store events, cache and return results:
+<div class="code"><pre>
+hash = hash(handler)
+
+handlers = { 
+    hash : (handler, memoize, timeout),
+    hash : (handler, memoize, timeout), ... 
+}
+
+memoize = { 
+    hash : ((args, kwargs, result), (args, kwargs, result), ...), 
+    hash : ((args, kwargs, result), ...), ...                       
+}
+
+exec_result = (
+    (True, result, handler),        # success
+    (False, ecx_info, handler),     # error
+    (None, None, handler), ...      # asynchronous
+)
+</pre></div>
+</body>
+</html>
