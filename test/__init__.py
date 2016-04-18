@@ -98,10 +98,7 @@ class TestAxel(unittest.TestCase):
              
 class TestRapidEventQueueing(unittest.TestCase):
     """
-    Test for investigating weird behaviour in rapid calls to events that are being queued.
- 
-    Contributed by Rob van der Most <Rob@rmsoft.nl>    
-     
+    Test for investigating weird behaviour in rapid calls to events that are being queued. 
     Have an event to which a single method is registered. This method will put the arguments
     from the call on a queue. Call the event several times in rapid succession. Check that no
     weird behaviour occurs.
