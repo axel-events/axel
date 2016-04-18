@@ -49,3 +49,7 @@ Features:
   - the result of the execution is provided as a tuple ((flag, result, handler),)
   - in case of error, the traceback may be provided for each handler in error
 
+Contributors:
+
+  - Erwin Mayer <traderwin at gmail dot com>
+  - Rob van der Most <Rob at rmsoft dot nl>
