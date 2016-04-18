@@ -36,7 +36,7 @@ h5 { font-size: 10pt; font-weight: bold; margin: 4px 0px 0px 0px; }
     
 <h1>Axel - Python events handling</h1>
 <h4>Documentation</h4><br/>
-Version 0.0.4 <br/>Last updated: April 7th, 2014<br/><br/>
+Version 0.0.5 <br/>Last updated: March 9th, 2016<br/><br/>
 <div class="topnav">
 <ul><li><a href="#description">Description, Features & Download </a></li>
     <li><a href="#examples">Examples</a></li>
@@ -56,7 +56,7 @@ events, that allows an easy and elegant event handling. <br/><br/>
 
 <h4>Features:</h4>
 <ul><li>handlers can receive the sender as their first argument</li>
-    <li>handlers are always executed in separate threads</li>
+    <li>handlers can be executed in the same or separate threads</li>
     <li>handlers may be executed synchronous or asynchronous</li>
     <li>handlers execution may be synchronized on a lock</li>
     <li>the time allocated for the execution of a handler is controllable</li>
@@ -158,7 +158,8 @@ arguments. The arguments are:
     <li>sender - event's sender. The sender is passed as the first argument to the 
                 handler, only if is not None. For this case the handler must have
                 a placeholder in the arguments to receive the sender</li>
-    <li>threads - maximum number of threads that will be started</li>
+    <li>threads - maximum number of threads that will be started. If threads = 0, 
+                  handlers are executed in the same thread as the event</li>
     <li>traceback - if True, the execution result will contain sys.exc_info() 
                     on error. exc_info must be also True to get the traceback</li>
 </ul>
@@ -189,7 +190,7 @@ following structure:
 <div class="code"><pre>
 (True, result, handler),        # success
 (False, exc_info, handler),     # error
-(None, None, handler), ...      # asynchronous
+(None, None, handler), ...      # asynchronous execution
 </pre></div>
 
 <a name="methods"></a>
@@ -221,7 +222,7 @@ memoize = {
 exec_result = (
     (True, result, handler),        # success
     (False, ecx_info, handler),     # error
-    (None, None, handler), ...      # asynchronous
+    (None, None, handler), ...      # asynchronous execution
 )
 </pre></div>
 </body>
