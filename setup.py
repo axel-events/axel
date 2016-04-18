@@ -1,13 +1,13 @@
 # setup.py
 #
-# Copyright (C) 2010 Adrian Cristea adrian dot cristea at gmail dotcom
+# Copyright (C) 2016 Adrian Cristea adrian dot cristea at gmail dotcom
 #
-# This module is part of Axel and is released under
+# This module is part of axel and is released under
 # the MIT License: http://www.opensource.org/licenses/mit-license.php 
 
 from setuptools import setup, find_packages
 
-version = '0.0.4'
+version = '0.0.5'
 
 setup(name='axel',
       version=version,
@@ -54,14 +54,19 @@ Examples::
 Features::
 
   - handlers can receive the sender as their first argument
-  - handlers are always executed in separate threads
+  - handlers can be executed in the same or separate threads
   - handlers may be executed synchronous or asynchronous
   - handlers execution may be synchronized on a lock
   - the time allocated for the execution of a handler is controllable
   - the number of actively executed handlers at one time is controllable
-  - the execution result of a handler can be memoized 
+  - the execution result of a handler can be cached 
   - the result of the execution is provided as a tuple ((flag, result, handler),)
   - in case of error, the traceback may be provided for each handler in error
+
+Contributors::
+
+  Erwin Mayer <traderwin at gmail dot com>
+  Rob van der Most <Rob at rmsoft dot nl>
 
 Please see the documentation: https://pythonhosted.org/axel
         """,
