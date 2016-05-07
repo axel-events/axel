@@ -15,7 +15,8 @@
 # Source: http://pypi.python.org/pypi/axel
 # Docs:   http://packages.python.org/axel
 
-import sys, threading
+import sys
+from threading import Thread, RLock
 try:
     from Queue import Queue, Empty
 except ImportError:
@@ -131,7 +132,8 @@ class Event(object):
         self.traceback = bool(traceback)        
         self.handlers = {}
         self.memoize = {}
-        self._mlock = threading.RLock() # lock the caching structure
+        self._hlock = RLock()
+        self._mlock = RLock() 
 
     def handle(self, handler):
         """ Registers a handler. The handler can be transmitted together 
@@ -149,35 +151,38 @@ class Event(object):
             event += handler    
             event += (handler, True, 1.5)
             event += {'handler':handler, 'memoize':True, 'timeout':1.5}         
-        """        
-        handler_, memoize, timeout = self._extract(handler)
-        self.handlers[hash(handler_)] = (handler_, memoize, timeout)
+        """ 
+        handler_, memoize, timeout = self._extract(handler)       
+        with self._hlock:            
+            self.handlers[hash(handler_)] = (handler_, memoize, timeout)
         return self    
 
     def unhandle(self, handler):
         """ Unregisters a handler """        
         h, _, _ = self._extract(handler)
         key = hash(h)
-        if not key in self.handlers:
-            raise ValueError('Handler "%s" was not found' % str(h))
-        del self.handlers[key]
+        with self._hlock:
+            if not key in self.handlers:
+                raise ValueError('Handler "%s" was not found' % str(h))
+            del self.handlers[key]
         return self
 
     def fire(self, *args, **kw):
         """ Stores all registered handlers in a queue for processing """        
         result = []  
 
-        if self.threads == 0: # same-thread execution - synchronized            
-            
-            if self.handlers:
-                for k in self.handlers:
-                    # handler, memoize, timeout
-                    h, m, t = self.handlers[k]
-                    try:
-                        r = self._memoize(h, m, t, *args, **kw)
-                        result.append(tuple(r))
-                    except:
-                        result.append((False, self._error(sys.exc_info()), h))
+        if self.threads == 0: # same-thread execution - synchronized
+                        
+            with self._hlock:
+                if self.handlers:
+                    for k in self.handlers:
+                        # handler, memoize, timeout
+                        h, m, t = self.handlers[k]
+                        try:
+                            r = self._memoize(h, m, t, *args, **kw)
+                            result.append(tuple(r))
+                        except:
+                            result.append((False, self._error(sys.exc_info()), h))
         
         elif self.threads > 0: # multi-thread execution - desynchronized if self.threads > 1 
             
@@ -185,7 +190,7 @@ class Event(object):
             
             # result lock just in case [].append() is not  
             # thread-safe in other Python implementations
-            rlock = threading.RLock() 
+            rlock = RLock() 
                             
             def _execute(*args, **kw):
                 """ Executes all handlers stored in the queue """        
@@ -197,7 +202,7 @@ class Event(object):
                             break
                         
                         # handler, memoize, timeout
-                        h, m, t = self.handlers[item]
+                        h, m, t = self.handlers[item] # call under active lock
                         
                         try:                            
                             r = self._memoize(h, m, t, *args, **kw)
@@ -213,38 +218,42 @@ class Event(object):
                         
                     except Empty: # never triggered, just to be safe
                         break
-                                
-            if self.handlers:
-                threads = self._threads()
-                
-                for _ in range(threads):
-                    t = threading.Thread(target=_execute, args=args, kwargs=kw)            
-                    t.daemon = True
-                    t.start()
-            
-                for k in self.handlers:
-                    queue.put(k)
+
+            with self._hlock:
+                if self.handlers:
+                    threads = self._threads()
                     
-                    if self.asynch: # main thread, no locking required
-                        h, _, _ = self.handlers[k]
-                        result.append((None, None, h)) 
+                    for _ in range(threads):
+                        t = Thread(target=_execute, args=args, kwargs=kw)            
+                        t.daemon = True
+                        t.start()
                 
-                for _ in range(threads):
-                    queue.put(None) # stop each worker
-                                                                                        
-                if not self.asynch:
-                    queue.join()
+                    for k in self.handlers:
+                        queue.put(k)
+                        
+                        if self.asynch: # main thread, no locking required
+                            h, _, _ = self.handlers[k]
+                            result.append((None, None, h)) 
+                    
+                    for _ in range(threads):
+                        queue.put(None) # stop each worker
+                                                                                            
+                    if not self.asynch:
+                        queue.join()
                                    
         return tuple(result) or None
 
     def count(self):
         """ Returns the count of registered handlers """
-        return len(self.handlers)
+        with self._hlock:
+            return len(self.handlers)
     
     def clear(self):
         """ Discards all registered handlers and cached results """
-        self.handlers.clear()
-        self.memoize.clear()
+        with self._hlock:        
+            self.handlers.clear()
+        with self._mlock:            
+            self.memoize.clear()
                         
     def _extract(self, item):
         """ Extracts a handler and handler's arguments that can be provided 
@@ -292,35 +301,34 @@ class Event(object):
         if not memoize: # no caching
             
             if timeout <= 0:    # no time restriction
-                return [True, handler(*args, **kw), handler]
+                return (True, handler(*args, **kw), handler)
                             
             result = self._timeout(timeout, handler, *args, **kw)
             if isinstance(result, tuple) and len(result) == 3: 
                 if isinstance(result[1], Exception): # error occurred
-                    return [False, self._error(result), handler]                    
-            return [True, result, handler]
+                    return (False, self._error(result), handler)                    
+            return (True, result, handler)
                         
         else: # caching
-            
-            hash_ = hash(handler)            
-            if hash_ in self.memoize:
-                for args_, kw_, result in self.memoize[hash_]:
-                    if args_ == args and kw_ == kw: # shallow structure comparison only                       
-                        return [True, result, handler]
-                    
-            if timeout <= 0:    # no time restriction
-                result = handler(*args, **kw)
-            else:                 
-                result = self._timeout(timeout, handler, *args, **kw)                                
-                if isinstance(result, tuple) and len(result) == 3:
-                    if isinstance(result[1], Exception): # error occurred
-                        return [False, self._error(result), handler]
-            
             with self._mlock: # cache structure lock   
+                hash_ = hash(handler)            
+                if hash_ in self.memoize:
+                    for args_, kw_, result in self.memoize[hash_]:
+                        if args_ == args and kw_ == kw: # shallow structure comparison only                       
+                            return (True, result, handler)
+                        
+                if timeout <= 0:    # no time restriction
+                    result = handler(*args, **kw)
+                else:                 
+                    result = self._timeout(timeout, handler, *args, **kw)                                
+                    if isinstance(result, tuple) and len(result) == 3:
+                        if isinstance(result[1], Exception): # error occurred
+                            return (False, self._error(result), handler)
+                
                 if hash_ not in self.memoize:
                     self.memoize[hash_] = []
                 self.memoize[hash_].append((args, kw, result))
-                return [True, result, handler]
+                return (True, result, handler)
 
     def _timeout(self, timeout, handler, *args, **kw):
         """ Controls the time allocated for the execution of a method """        
@@ -341,10 +349,11 @@ class Event(object):
                 return sys.exc_info()
     
     def _threads(self):
-        """ Calculates maximum number of threads that will be started """                
-        if self.threads < len(self.handlers):
-            return self.threads
-        return len(self.handlers)
+        """ Calculates maximum number of threads that will be started """
+        with self._hlock:                
+            if self.threads < len(self.handlers):
+                return self.threads
+            return len(self.handlers)
 
     def _error(self, exc_info):     
         """ Retrieves the error info """            
@@ -359,11 +368,11 @@ class Event(object):
     __call__ = fire
     __len__  = count
 
-class spawn_thread(threading.Thread):    
+class spawn_thread(Thread):    
     """ Spawns a new thread and returns the execution result """
     
     def __init__(self, target, args=(), kw={}, default=None):
-        threading.Thread.__init__(self)                
+        Thread.__init__(self)                
         self._target = target
         self._args = args
         self._kwargs = kw
