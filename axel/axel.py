@@ -154,7 +154,7 @@ class Event(object):
             event += {'handler':handler, 'memoize':True, 'timeout':1.5}         
         """
         handler_, memoize, timeout = self._extract(handler)
-        with self._handlers_lock:
+        with self._hlock:
             handlers = self.handlers.copy()  # Immutable as in .NET http://stackoverflow.com/a/786455/541420
             handlers[hash(handler_)] = (handler_, memoize, timeout)
             self.handlers = handlers
@@ -164,7 +164,7 @@ class Event(object):
         """ Unregisters a handler """
         h, _, _ = self._extract(handler)
         key = hash(h)
-        with self._handlers_lock:
+        with self._hlock:
             if key not in self.handlers:
                 raise ValueError('Handler "%s" was not found' % str(h))
             handlers = self.handlers.copy()
@@ -176,23 +176,20 @@ class Event(object):
         """ Stores all registered handlers in a queue for processing """
         result = []
 
-        with self._handlers_lock:
+        with self._hlock:
             handlers = self.handlers
 
         if self.threads == 0:  # same-thread execution - synchronized
-
-            with self._hlock:
-                for k in handlers:
-                    # handler, memoize, timeout
-                    h, m, t = handlers[k]
-                    try:
-                        r = self._memoize(h, m, t, *args, **kw)
-                        result.append(tuple(r))
-                    except:
-                        result.append((False, self._error(sys.exc_info()), h))
+            for k in handlers:
+                # handler, memoize, timeout
+                h, m, t = handlers[k]
+                try:
+                    r = self._memoize(h, m, t, *args, **kw)
+                    result.append(tuple(r))
+                except:
+                    result.append((False, self._error(sys.exc_info()), h))
 
         elif self.threads > 0:  # multi-thread execution - desynchronized if self.threads > 1
-
             queue = Queue()
 
             # result lock just in case [].append() is not  
@@ -220,35 +217,32 @@ class Event(object):
                             if not self.asynch:
                                 with rlock:
                                     result.append((False, self._error(sys.exc_info()), h))
-                            else:
-                                raise
 
                         queue.task_done()
 
                     except Empty:  # never triggered, just to be safe
                         break
 
-            with self._hlock:
-                if handlers:
-                    threads = self._threads(handlers=handlers)
+            if handlers:
+                threads = self._threads(handlers=handlers)
 
-                    for _ in range(threads):
-                        t = Thread(target=_execute, args=args, kwargs=kw)
-                        t.daemon = True
-                        t.start()
+                for _ in range(threads):
+                    t = Thread(target=_execute, args=args, kwargs=kw)
+                    t.daemon = True
+                    t.start()
 
-                    for k in handlers:
-                        queue.put(k)
+                for k in handlers:
+                    queue.put(k)
 
-                        if self.asynch:  # main thread, no locking required
-                            h, _, _ = handlers[k]
-                            result.append((None, None, h))
+                    if self.asynch:  # main thread, no locking required
+                        h, _, _ = handlers[k]
+                        result.append((None, None, h))
 
-                    for _ in range(threads):
-                        queue.put(None)  # stop each worker
+                for _ in range(threads):
+                    queue.put(None)  # stop each worker
 
-                    if not self.asynch:
-                        queue.join()
+                if not self.asynch:
+                    queue.join()
 
         return tuple(result) or None
 
