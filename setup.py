@@ -7,11 +7,11 @@
 
 from setuptools import setup, find_packages
 
-version = '0.0.5'
+version = '0.0.6'
 
 setup(name='axel',
       version=version,
-      description="Python events handling",
+      description="Python events handling, C# style",
       long_description="""\
 *Axel* is a very small Python library inspired by C#  
 events that allows an easy and elegant events handling. 
@@ -84,6 +84,8 @@ Please see the documentation: https://pythonhosted.org/axel
       author='Adrian Cristea',
       author_email='adrian.cristea@gmail.com ',
       license='MIT',
+      url='https://github.com/axel-events/axel',
+      # download_url='https://github.com/axel-events/axel/tarball/0.1',
       packages=find_packages('.', exclude=['doc*', 'example*', 'test*']),
       zip_safe=False,
 ) 
