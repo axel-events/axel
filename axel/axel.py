@@ -351,7 +351,7 @@ class Event(object):
             except:
                 return sys.exc_info()
 
-    def _threads(self, handlers: dict):
+    def _threads(self, handlers):
         """ Calculates maximum number of threads that will be started """
         if self.threads < len(handlers):
             return self.threads

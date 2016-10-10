@@ -7,14 +7,14 @@
 
 from setuptools import setup, find_packages
 
-version = '0.0.6'
+version = '0.0.7'
 
 setup(name='axel',
       version=version,
       description="Python events handling, C# style",
       long_description="""\
 *Axel* is a very small Python library inspired by C#  
-events that allows an easy and elegant events handling. 
+events that allows an easy and elegant events handling.
 
 Examples::
 
